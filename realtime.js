@@ -7,13 +7,13 @@
   'use strict';
 
   const CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  const MAX_PARTICIPANTS = 2;
+  const MAX_PARTICIPANTS = 6;
   const MAX_MESSAGES_PER_ROOM = 300;
   const MAX_IMAGE_BYTES = 4 * 1024 * 1024;
   const MAX_ROOM_CONTENT_BYTES = 20 * 1024 * 1024;
   const MAX_TEXT_LENGTH = 4000;
   const ALLOWED_REACTIONS = new Set(['💜', '😂', '😭', '🔥', '✨', '👀', '🫶', '💀']);
-  const CHUNK_SIZE = 40_000;
+  const CHUNK_SIZE = 20_000;
   const PEER_OPTIONS = {
     debug: 1,
     config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
@@ -50,6 +50,7 @@
       this.requestCounter = 0;
       this.pendingAcks = new Map();
       this.chunkBuffers = new WeakMap();
+      this.sendQueues = new WeakMap();
       this.manualClose = false;
       this._openMainPeer();
       window.addEventListener('beforeunload', () => this._dispose(), { once: true });
@@ -105,7 +106,7 @@
     emit(event, payload, callback) {
       if (typeof payload === 'function') { callback = payload; payload = {}; }
       payload = payload && typeof payload === 'object' ? payload : {};
-      if (event === 'room:create') { this._createRoom(payload.name, callback); return this; }
+      if (event === 'room:create') { this._createRoom(payload.name, callback, payload.seedMessages); return this; }
       if (event === 'room:join') { this._joinRoom(payload.name, payload.code, callback); return this; }
       if (event === 'room:leave') { this._leaveRoom(callback); return this; }
 
@@ -122,7 +123,32 @@
       return this;
     }
 
-    async _createRoom(nameValue, callback) {
+    _sanitizeSeedMessages(items) {
+      if (!Array.isArray(items)) return [];
+      const result = []; let totalBytes = 0;
+      for (const item of items.slice(-MAX_MESSAGES_PER_ROOM)) {
+        if (!item || !['text', 'image'].includes(item.type)) continue;
+        const senderName = cleanName(item.senderName || item.sender || 'friend') || 'friend';
+        const timestamp = Number.isFinite(Number(item.timestamp)) ? Number(item.timestamp) : Date.now();
+        let safe;
+        if (item.type === 'text') {
+          const text = typeof item.text === 'string' ? item.text.trim().slice(0, MAX_TEXT_LENGTH) : '';
+          if (!text) continue;
+          safe = { id: String(item.id || `saved-${Date.now()}-${result.length}`).slice(0,120), type:'text', text, senderId:String(item.senderId || 'saved-user'), senderName, timestamp, reactions:{} };
+        } else {
+          const dataUrl = typeof item.dataUrl === 'string' ? item.dataUrl : (typeof item.imageDataUrl === 'string' ? item.imageDataUrl : '');
+          if (!/^data:image\/(?:png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(dataUrl)) continue;
+          const bytes = approxDataBytes(dataUrl); if (bytes < 1 || bytes > MAX_IMAGE_BYTES) continue;
+          safe = { id:String(item.id || `saved-${Date.now()}-${result.length}`).slice(0,120), type:'image', dataUrl, fileName:String(item.fileName || 'saved-image').replace(/[\u0000-\u001f]/g,'').slice(0,100), senderId:String(item.senderId || 'saved-user'), senderName, timestamp, reactions:{} };
+        }
+        const size = new TextEncoder().encode(JSON.stringify(safe)).length;
+        if (totalBytes + size > MAX_ROOM_CONTENT_BYTES) break;
+        totalBytes += size; result.push(safe);
+      }
+      return result;
+    }
+
+    async _createRoom(nameValue, callback, seedMessages = []) {
       if (!this.connected || !this.id) return callback?.(fail('Still connecting. Try again in a moment.'));
       if (this.currentRoom) return callback?.(fail('Leave your current room first.'));
       const name = cleanName(nameValue);
@@ -146,10 +172,17 @@
           roomPeer.on('error', (error) => finish({ ok: false, error }));
         });
         if (result.ok) {
+          const messages = this._sanitizeSeedMessages(seedMessages);
+          let totalBytes = 0;
+          for (const message of messages) {
+            const size = new TextEncoder().encode(JSON.stringify(message)).length;
+            Object.defineProperty(message, '_memoryBytes', { value: size, enumerable: false });
+            totalBytes += size;
+          }
           const room = {
             code, createdAt: Date.now(), hostPeer: roomPeer,
             users: new Map([[this.id, { name, color: '#b6a0ff' }]]),
-            connection: null, messages: [], totalBytes: 0, rateLimits: new Map(), ending: false,
+            connections: new Map(), messages, totalBytes, rateLimits: new Map(), ending: false,
           };
           this.hostRoom = room;
           this.currentRoom = { code, role: 'host' };
@@ -227,23 +260,21 @@
 
     _acceptGuest(room, conn) {
       this._bindConnection(conn, (packet) => this._handleHostPacket(room, conn, packet));
-      conn.on('close', () => {
-        if (this.hostRoom === room && room.connection === conn && !room.ending) {
-          this._endRoom('Your person left. The room and its messages were cleared.', { dispatchLocal: true, notifyGuest: false });
-        }
-      });
-      conn.on('error', () => {
-        if (this.hostRoom === room && room.connection === conn && !room.ending) {
-          this._endRoom('The direct connection ended. The room was cleared.', { dispatchLocal: true, notifyGuest: false });
-        }
-      });
+      const detach = (reason) => {
+        if (this.hostRoom !== room || room.ending || room.connections.get(conn.peer) !== conn) return;
+        const user = room.users.get(conn.peer);
+        room.connections.delete(conn.peer); room.users.delete(conn.peer);
+        if (user) { this._system(room, reason || `${user.name} left the room`); this._broadcastMembers(room); }
+      };
+      conn.on('close', () => detach('A participant disconnected'));
+      conn.on('error', () => detach('A participant connection ended'));
     }
 
     _bindConnection(conn, handler) {
       conn.on('data', (packet) => {
         if (packet && packet.__afterglowChunk === true) {
           const buffers = this._getChunkBuffer(conn);
-          if (!Number.isInteger(packet.total) || packet.total < 1 || packet.total > 400 ||
+          if (!Number.isInteger(packet.total) || packet.total < 1 || packet.total > 500 ||
               !Number.isInteger(packet.index) || packet.index < 0 || packet.index >= packet.total ||
               typeof packet.id !== 'string' || typeof packet.data !== 'string') return;
           let entry = buffers.get(packet.id);
@@ -271,30 +302,40 @@
     _sendPacket(conn, packet) {
       if (!conn || conn.open !== true) return false;
       try {
-        const encoded = JSON.stringify(packet);
-        if (encoded.length <= CHUNK_SIZE) { conn.send(packet); return true; }
-        const chars = Array.from(encoded); // Keep Unicode code points intact while chunking.
-        const total = Math.ceil(chars.length / CHUNK_SIZE);
-        if (total > 400) return false;
-        const id = (globalThis.crypto?.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-        for (let index = 0; index < total; index += 1) {
-          conn.send({ __afterglowChunk: true, id, index, total, data: chars.slice(index * CHUNK_SIZE, (index + 1) * CHUNK_SIZE).join('') });
+        const encoded = JSON.stringify(packet), total = Math.ceil(encoded.length / CHUNK_SIZE);
+        if (total > 500) return false;
+        const item = { encoded, total, index: 0, id: total > 1 ? ((globalThis.crypto?.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`) : null };
+        let queue = this.sendQueues.get(conn);
+        if (!queue) { queue = { items: [], running: false }; this.sendQueues.set(conn, queue); }
+        queue.items.push(item); if (!queue.running) void this._drainSendQueue(conn, queue); return true;
+      } catch (error) { console.warn('Afterglow could not queue a packet.', error); return false; }
+    }
+
+    async _drainSendQueue(conn, queue) {
+      if (queue.running) return; queue.running = true;
+      try {
+        while (queue.items.length && conn.open === true) {
+          const item = queue.items[0], channel = conn.dataChannel;
+          while (conn.open === true && channel && channel.bufferedAmount > 512 * 1024) await new Promise(resolve => window.setTimeout(resolve, 15));
+          if (conn.open !== true) break;
+          const outgoing = item.total > 1
+            ? { __afterglowChunk:true, id:item.id, index:item.index, total:item.total, data:item.encoded.slice(item.index*CHUNK_SIZE, (item.index+1)*CHUNK_SIZE) }
+            : JSON.parse(item.encoded);
+          conn.send(outgoing); item.index += 1; if (item.index >= item.total) queue.items.shift();
+          if (item.total > 1) await new Promise(resolve => window.setTimeout(resolve, 0));
         }
-        return true;
-      } catch (error) {
-        console.warn('Afterglow could not send a packet.', error);
-        return false;
-      }
+      } catch (error) { console.warn('Afterglow packet transfer stopped.', error); queue.items.length = 0; }
+      finally { queue.running = false; if (queue.items.length && conn.open === true) window.setTimeout(() => this._drainSendQueue(conn, queue), 0); }
     }
 
     _sendRequest(conn, event, payload, callback) {
-      const requestId = `${++this.requestCounter}-${Date.now()}`;
-      if (typeof callback === 'function') this.pendingAcks.set(requestId, { callback, event });
-      const sent = this._sendPacket(conn, { kind: 'request', requestId, event, payload });
-      if (!sent) {
-        this.pendingAcks.delete(requestId);
-        if (callback) callback(fail('The direct connection is not ready. Try again.'));
+      const requestId = `${++this.requestCounter}-${Date.now()}`; let timer = null;
+      if (typeof callback === 'function') {
+        timer = window.setTimeout(() => { const pending=this.pendingAcks.get(requestId); if(!pending)return; this.pendingAcks.delete(requestId); pending.callback(fail('The message could not be confirmed. Check the connection and try again.')); }, event === 'chat:send' && payload.type === 'image' ? 60000 : 30000);
+        this.pendingAcks.set(requestId,{callback,event,timer});
       }
+      const sent=this._sendPacket(conn,{kind:'request',requestId,event,payload});
+      if(!sent){this.pendingAcks.delete(requestId);if(timer)window.clearTimeout(timer);if(callback)callback(fail('The direct connection is not ready. Try again.'));}
     }
 
     _sendAck(conn, requestId, result) {
@@ -305,30 +346,26 @@
     _handleHostPacket(room, conn, packet) {
       if (this.hostRoom !== room || !packet || packet.kind !== 'request' || typeof packet.event !== 'string') return;
       if (packet.event === 'room:join') {
-        const name = cleanName(packet.payload?.name);
-        const code = String(packet.payload?.code || '').toUpperCase();
-        if (code !== room.code) { this._refuseJoin(conn, packet.requestId, 'The invite code does not match.'); return; }
-        if (!name) { this._refuseJoin(conn, packet.requestId, 'Add a nickname first.'); return; }
-        if (room.connection && room.connection !== conn) { this._refuseJoin(conn, packet.requestId, 'This room already has two people.'); return; }
-        if (room.users.size >= MAX_PARTICIPANTS && !room.users.has(conn.peer)) { this._refuseJoin(conn, packet.requestId, 'This room already has two people.'); return; }
+        const name = cleanName(packet.payload?.name), code = String(packet.payload?.code || '').toUpperCase();
+        if (code !== room.code) return this._refuseJoin(conn, packet.requestId, 'The invite code does not match.');
+        if (!name) return this._refuseJoin(conn, packet.requestId, 'Add a nickname first.');
+        if (!room.users.has(conn.peer) && room.users.size >= MAX_PARTICIPANTS) return this._refuseJoin(conn, packet.requestId, 'This room is full (6 people max).');
         if (!room.users.has(conn.peer)) {
-          room.connection = conn;
-          room.users.set(conn.peer, { name, color: '#77e6ce' });
+          room.connections.set(conn.peer, conn);
+          const colors = ['#77e6ce','#ffc2a1','#b6a0ff','#f4a8d1','#9bbcff'];
+          room.users.set(conn.peer, { name, color:colors[room.users.size % colors.length] });
         }
-        this._sendAck(conn, packet.requestId, { ok: true, room: this._publicRoom(room), messages: clone(room.messages) });
-        this._system(room, `${name} slid into the room`);
-        this._broadcastMembers(room);
-        return;
+        this._sendAck(conn, packet.requestId, { ok:true, room:this._publicRoom(room), messages:clone(room.messages) });
+        this._system(room, `${name} joined the room`); this._broadcastMembers(room); return;
       }
       const user = room.users.get(conn.peer);
-      if (room.connection !== conn || !user) { this._sendAck(conn, packet.requestId, fail('You are not in this room.')); return; }
+      if (room.connections.get(conn.peer) !== conn || !user) { this._sendAck(conn, packet.requestId, fail('You are not in this room.')); return; }
       if (packet.event === 'room:leave') {
-        this._sendAck(conn, packet.requestId, { ok: true });
-        this._endRoom(`${user.name} left. The room and its messages were cleared.`, { dispatchLocal: true, notifyGuest: true });
-        return;
+        this._sendAck(conn, packet.requestId, {ok:true}); room.connections.delete(conn.peer); room.users.delete(conn.peer);
+        this._system(room, `${user.name} left the room`); this._broadcastMembers(room);
+        window.setTimeout(() => { try { conn.close(); } catch {} }, 160); return;
       }
-      const result = this._processHostEvent(conn.peer, user.name, packet.event, packet.payload || {});
-      this._sendAck(conn, packet.requestId, result);
+      this._sendAck(conn, packet.requestId, this._processHostEvent(conn.peer, user.name, packet.event, packet.payload || {}));
     }
 
     _refuseJoin(conn, requestId, message) {
@@ -343,6 +380,7 @@
         const pending = this.pendingAcks.get(packet.requestId);
         if (!pending) return;
         this.pendingAcks.delete(packet.requestId);
+        if (pending.timer) window.clearTimeout(pending.timer);
         if (pending.event === 'room:leave') this._clearGuest(false);
         pending.callback(packet.result);
         return;
@@ -368,18 +406,18 @@
     _broadcastMembers(room) {
       const members = this._publicRoom(room).members;
       this.dispatch('room:members', clone(members));
-      if (room.connection?.open) this._sendPacket(room.connection, { kind: 'event', event: 'room:members', payload: members });
+      for (const conn of room.connections.values()) if (conn.open) this._sendPacket(conn, { kind: 'event', event: 'room:members', payload: members });
     }
 
     _system(room, text) {
       const message = { id: `system-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`, text, timestamp: Date.now() };
       this.dispatch('chat:system', clone(message));
-      if (room.connection?.open) this._sendPacket(room.connection, { kind: 'event', event: 'chat:system', payload: message });
+      for (const conn of room.connections.values()) if (conn.open) this._sendPacket(conn, { kind: 'event', event: 'chat:system', payload: message });
     }
 
     _broadcastRoom(room, event, payload) {
       this.dispatch(event, clone(payload));
-      if (room.connection?.open) this._sendPacket(room.connection, { kind: 'event', event, payload });
+      for (const conn of room.connections.values()) if (conn.open) this._sendPacket(conn, { kind: 'event', event, payload });
     }
 
     _allowBurst(room, senderId, key, limit, windowMs) {
@@ -465,26 +503,14 @@
     }
 
     _endRoom(reason, { dispatchLocal = true, notifyGuest = true } = {}) {
-      const room = this.hostRoom;
-      if (!room || room.ending) return;
-      room.ending = true;
-      const conn = room.connection;
-      if (notifyGuest && conn?.open) this._sendPacket(conn, { kind: 'event', event: 'room:ended', payload: { reason } });
-      this.hostRoom = null;
-      this.currentRoom = null;
-      this.username = null;
-      room.messages.length = 0;
-      room.totalBytes = 0;
-      room.users.clear();
-      room.rateLimits.clear();
-      const closeRoomTransport = () => {
-        try { room.hostPeer.destroy(); } catch { /* The room host is already gone. */ }
-        if (conn) { try { conn.close(); } catch { /* noop */ } }
-      };
-      // Flush the room-ended packet before the PeerJS room peer closes its channels.
-      if (conn && notifyGuest && conn.open) window.setTimeout(closeRoomTransport, 180);
-      else closeRoomTransport();
-      if (dispatchLocal) this.dispatch('room:ended', { reason });
+      const room = this.hostRoom; if (!room || room.ending) return; room.ending = true;
+      const connections = [...room.connections.values()];
+      if (notifyGuest) for (const conn of connections) if (conn.open) this._sendPacket(conn, {kind:'event',event:'room:ended',payload:{reason}});
+      this.hostRoom = null; this.currentRoom = null; this.username = null;
+      room.messages.length = 0; room.totalBytes = 0; room.users.clear(); room.connections.clear(); room.rateLimits.clear();
+      const closeAll = () => { try { room.hostPeer.destroy(); } catch {} for (const conn of connections) { try { conn.close(); } catch {} } };
+      if (notifyGuest && connections.some(conn => conn.open)) window.setTimeout(closeAll, 250); else closeAll();
+      if (dispatchLocal) this.dispatch('room:ended', {reason});
     }
 
     _clearGuest(closeConnection = false) {
@@ -495,6 +521,7 @@
       this.username = null;
       for (const [id, item] of this.pendingAcks.entries()) {
         this.pendingAcks.delete(id);
+        if (item.timer) window.clearTimeout(item.timer);
         try { item.callback(fail('The room has ended.')); } catch { /* Callback already unmounted. */ }
       }
       if (closeConnection && conn) window.setTimeout(() => { try { conn.close(); } catch { /* noop */ } }, 50);
