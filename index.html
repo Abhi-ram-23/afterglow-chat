@@ -25,7 +25,7 @@
       </a>
       <div class="topbar-right">
         <span class="privacy-status"><span class="live-dot"></span> NO HISTORY MODE</span>
-        <a class="top-link" href="#how-it-works">the vibe <span aria-hidden="true">↗</span></a>
+        <button class="top-link saved-top-link" id="savedChatsButton" type="button">saved chats ♡</button><a class="top-link" href="#how-it-works">the vibe <span aria-hidden="true">↗</span></a>
       </div>
     </header>
 
@@ -34,14 +34,14 @@
         <div class="hero-copy reveal">
           <div class="eyebrow"><span class="eyebrow-star">✳</span> YOUR LITTLE CORNER OF THE INTERNET</div>
           <h1>Keep the vibe.<br /><span class="gradient-words">Lose the history.</span></h1>
-          <p class="hero-description">A private little room for your people. Drop the thought, send the pic, overshare a bit. When everyone leaves, it all fades out. <span>No chat archive. Just the moment.</span></p>
+          <p class="hero-description">A private little room for your people. Drop the thought, send the pic, overshare a bit. Save a conversation only when you choose. <span>Your chats, your call.</span></p>
           <div class="hero-actions">
             <button class="button button-primary button-large" id="openCreate">
               <span class="button-icon">✳</span> Create a room <span class="button-arrow">↗</span>
             </button>
             <a class="button button-quiet button-large" href="#join-section">I have a code <span aria-hidden="true">↓</span></a>
           </div>
-          <div class="micro-proof"><div class="avatar-stack" aria-hidden="true"><span>A</span><span>✿</span><span>✦</span></div><span>Just you + your person.</span><span class="micro-divider"></span><span class="micro-mono">NO SIGN-UP. EVER.</span></div>
+          <div class="micro-proof"><div class="avatar-stack" aria-hidden="true"><span>A</span><span>✿</span><span>✦</span></div><span>You + up to five friends.</span><span class="micro-divider"></span><span class="micro-mono">NO SIGN-UP. EVER.</span></div>
         </div>
 
         <div class="hero-art reveal reveal-delay" aria-label="Preview of a private Afterglow conversation">
@@ -70,7 +70,7 @@
       </section>
 
       <section class="join-band" id="join-section">
-        <div class="join-copy"><span class="section-kicker">YOUR FRIEND SENT A CODE?</span><h2>Slide into<br /><em>the room.</em></h2><p>Ten characters. Two people. One tiny universe.</p></div>
+        <div class="join-copy"><span class="section-kicker">YOUR FRIEND SENT A CODE?</span><h2>Slide into<br /><em>the room.</em></h2><p>Ten characters. Six people. One tiny universe.</p></div>
         <form id="joinForm" class="join-card" autocomplete="off">
           <div class="join-card-top"><div><span class="join-label">ROOM ACCESS</span><h3>You've got the invite.</h3></div><div class="keyhole">⌑</div></div>
           <label for="joinName">Your nickname <span>↴</span></label>
@@ -78,14 +78,14 @@
           <label for="joinCode">Room code <span>10 CHARACTERS</span></label>
           <input id="joinCode" name="code" class="code-input" type="text" minlength="10" maxlength="10" placeholder="Q7KM3X9P2R" required autocapitalize="characters" spellcheck="false" />
           <button class="button button-primary join-submit" type="submit">Join the room <span class="button-arrow">↗</span></button>
-          <p class="join-footnote"><span>🔒</span> Two people only. No chat database. Best on a stable network with WebRTC support.</p>
+          <p class="join-footnote"><span>🔒</span> Up to six people. No chat database. Best on a stable network with WebRTC support.</p>
         </form>
       </section>
 
       <section class="features-section" id="how-it-works">
         <div class="features-heading"><div><span class="section-kicker">THE INTERNET, BUT LESS PERMANENT</span><h2>Made for the <em>right now.</em></h2></div><p>Group chats are forever. This one knows when to let go.</p></div>
         <div class="feature-grid">
-          <article class="feature-card feature-lilac"><div class="feature-top"><span class="feature-number">01 / PRIVATE</span><span class="feature-symbol">↗</span></div><div class="feature-illustration lock-art"><span class="lock-body">⌑</span><i class="lock-spark">✦</i><i class="lock-spark two">✧</i></div><h3>Two's a crowd.</h3><p>Your room fits exactly two people. Share a link or a one-time code. No audience, no randoms.</p></article>
+          <article class="feature-card feature-lilac"><div class="feature-top"><span class="feature-number">01 / PRIVATE</span><span class="feature-symbol">↗</span></div><div class="feature-illustration lock-art"><span class="lock-body">⌑</span><i class="lock-spark">✦</i><i class="lock-spark two">✧</i></div><h3>Two's a crowd.</h3><p>Your room fits up to six people. Share a link or a one-time code. No audience, no randoms.</p></article>
           <article class="feature-card feature-mint"><div class="feature-top"><span class="feature-number">02 / EPHEMERAL</span><span class="feature-symbol">⌁</span></div><div class="feature-illustration fade-art"><span>gone</span><i>✳</i><b></b></div><h3>Gone when you're gone.</h3><p>Messages and images travel directly between browsers. When either person leaves, the room is wiped.</p></article>
           <article class="feature-card feature-peach"><div class="feature-top"><span class="feature-number">03 / YOUR CALL</span><span class="feature-symbol">♡</span></div><div class="feature-illustration save-art"><span class="save-file">TXT<br /><small>your memory</small></span><i>↓</i></div><h3>Keep what matters.</h3><p>Hit Save chat to export the conversation to your own device. Nothing gets quietly archived on our side.</p></article>
         </div>
@@ -95,6 +95,8 @@
       <footer class="site-footer"><a class="brand footer-brand" href="./" id="footerHome"><span class="brand-mark"><span></span><span></span><span></span></span><span>afterglow<span class="brand-period">.</span></span></a><span>Made for the lore. Not the archive.</span><button type="button" class="footer-disclaimer" id="privacyDetails">privacy, plainly ↗</button></footer>
     </main>
 
+    <main id="savedChatsView" class="saved-chats-view hidden" aria-label="Saved chats"><section class="saved-page-heading"><span class="section-kicker">YOUR MEMORIES, YOUR DEVICE</span><h1>Saved <em>chats.</em></h1><p>These conversations live in this browser only. Clearing browser data may remove them; export important chats for a backup.</p><button class="button button-quiet" id="savedChatsBack" type="button">← Back home</button></section><div id="savedChatsList" class="saved-chats-list"></div></main>
+
     <main id="roomView" class="room-view hidden" aria-label="Private chat room">
       <header class="room-topbar">
         <a class="brand" href="./" id="roomBrandHome" aria-label="Leave room and return home"><span class="brand-mark"><span></span><span></span><span></span></span><span>afterglow<span class="brand-period">.</span></span></a>
@@ -103,21 +105,21 @@
       </header>
       <section class="chat-workspace">
         <aside class="room-side-panel">
-          <div class="side-label">YOUR LITTLE UNIVERSE</div><div class="room-orb"><div class="orb-core">✳</div><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div></div>
-          <h2 id="roomHeadline">the yap session</h2><p class="room-subtitle">This room belongs to<br />the two of you.</p>
+          <div class="side-label">YOUR GROUP UNIVERSE</div><div class="room-orb"><div class="orb-core">✳</div><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div></div>
+          <h2 id="roomHeadline">the yap session</h2><p class="room-subtitle">Your corner of the internet.<br />Up to six people, one room.</p>
           <div class="member-list" id="memberList"></div>
-          <div class="room-rule"><span>⌁</span><div><strong>Living in the now</strong><p>Messages vanish when the last person leaves. Nothing gets saved by default.</p></div></div>
+          <div class="room-rule"><span>⌁</span><div><strong>Living in the now</strong><p>Messages stay temporary unless someone chooses to save a copy. Up to six people can join.</p></div></div>
           <button id="wipeRoom" class="wipe-button" type="button"><span>✳</span> Wipe this room now</button>
         </aside>
         <section class="chat-panel">
-          <div class="chat-panel-heading"><div><span class="section-kicker">THE CONVERSATION</span><h2>Say it <em>here.</em></h2></div><div class="online-pill"><span class="live-dot"></span><span id="onlineCount">1/2 HERE</span></div></div>
+          <div class="chat-panel-heading"><div><span class="section-kicker">THE GROUP CHAT</span><h2>Say it <em>here.</em></h2></div><div class="online-pill"><span class="live-dot"></span><span id="onlineCount">1/6 HERE</span></div></div>
           <div id="messageList" class="message-list" aria-live="polite" aria-relevant="additions text">
             <div class="empty-state" id="emptyState"><div class="empty-icon">✳</div><h3>It's quiet in here.</h3><p>Drop the first message.<br />Make it a good one (or don't).</p><span class="empty-nudge">psst, images are welcome too ↴</span></div>
           </div>
           <div class="typing-status" id="typingStatus" aria-live="polite"></div>
           <form id="composerForm" class="composer-form">
             <div class="composer-tools"><div class="tool-left"><button type="button" id="attachImage" class="composer-tool" title="Attach an image">＋ <span>add a pic</span></button><input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden /><button type="button" id="emojiToggle" class="composer-tool emoji-toggle" title="Add an emoji">☺</button></div><span class="composer-hint">ENTER TO SEND <span>·</span> SHIFT + ENTER FOR A LINE</span></div>
-            <div id="emojiTray" class="emoji-tray hidden" aria-label="Emoji picker"><button type="button">😭</button><button type="button">💀</button><button type="button">🫶</button><button type="button">😂</button><button type="button">👀</button><button type="button">✨</button><button type="button">💜</button><button type="button">🔥</button><button type="button">🥹</button><button type="button">🤝</button><button type="button">🫡</button><button type="button">😮‍💨</button></div>
+            <div id="emojiTray" class="emoji-tray hidden" aria-label="Emoji picker"></div>
             <div class="composer-row"><textarea id="messageInput" rows="1" maxlength="4000" placeholder="say it with your chest..." aria-label="Write a message"></textarea><button class="send-button" type="submit" aria-label="Send message"><span>↗</span></button></div>
             <div id="imagePreview" class="image-preview hidden"><span id="imagePreviewName"></span><button type="button" id="cancelImage" aria-label="Remove selected image">×</button></div>
           </form>
