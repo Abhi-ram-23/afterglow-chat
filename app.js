@@ -29,7 +29,7 @@
   let typingTimer = null;
   let typingSent = false;
   let moodIndex = 0;
-  const moods = ['', 'mood-mint', 'mood-peach'];
+  const moods = ['', 'mood-mint', 'mood-peach', 'mood-ocean', 'mood-rose', 'mood-amber'];
   const quickReactions = ['💜', '😂', '😭', '🔥', '✨', '👀', '🫶', '💀'];
 
   function toast(message, type = '') {
@@ -86,7 +86,7 @@
     messages = Array.isArray(response.messages) ? response.messages.slice() : [];
     $('#roomCodeLabel').textContent = response.room.code;
     $('#roomHeadline').textContent = 'the yap session';
-    $('#onlineCount').textContent = `${memberList.length}/2 HERE`;
+    $('#onlineCount').textContent = `${memberList.length}/6 HERE`;
     landingView.classList.add('hidden');
     roomView.classList.remove('hidden');
     window.history.replaceState({}, '', `${window.location.pathname}#room=${response.room.code}`);
@@ -117,7 +117,7 @@
       row.append(avatar, meta);
       container.append(row);
     });
-    $('#onlineCount').textContent = `${memberList.length}/2 HERE`;
+    $('#onlineCount').textContent = `${memberList.length}/6 HERE`;
   }
 
   function renderHistory() {
@@ -300,26 +300,80 @@
   async function sendCurrentMessage(event) {
     if (event) event.preventDefault();
     if (!activeRoom) return;
-    const text = messageInput.value.trim();
-    const image = selectedImage;
+    const text = messageInput.value.trim(), image = selectedImage;
     if (!text && !image) return;
-    messageInput.value = '';
-    messageInput.style.height = 'auto';
+    const sendButton = $('.send-button');
+    sendButton.disabled = true; sendButton.style.opacity = '.65';
+    messageInput.disabled = true;
     setTyping(false);
-    if (image) {
-      const result = await new Promise((resolve) => {
-        socket.emit('chat:send', { type: 'image', dataUrl: image.dataUrl, fileName: image.fileName }, resolve);
-      });
-      if (!result || !result.ok) {
-        toast(result?.error || 'Image did not send. Try a smaller one.', 'error');
-        return;
+    try {
+      if (image) {
+        toast('Sending picture safely…');
+        const result = await new Promise((resolve) => {
+          const timer = window.setTimeout(() => resolve({ok:false,error:'Image transfer took too long. Try a smaller image or a steadier connection.'}), 65000);
+          socket.emit('chat:send', {type:'image',dataUrl:image.dataUrl,fileName:image.fileName}, response => {window.clearTimeout(timer);resolve(response);});
+        });
+        if (!result || !result.ok) { toast(result?.error || 'Image did not send. Try a smaller one.', 'error'); return; }
+        selectedImage = null; imageInput.value = ''; imagePreview.classList.add('hidden');
       }
-      selectedImage = null;
-      imageInput.value = '';
-      imagePreview.classList.add('hidden');
+      if (text) {
+        const ok = await sendText(text);
+        if (!ok) return;
+      }
+      messageInput.value = ''; messageInput.style.height = 'auto';
+    } catch (error) {
+      toast(error?.message || 'Something interrupted the send. Your draft is still here.', 'error');
+    } finally {
+      sendButton.disabled = false; sendButton.style.opacity = ''; messageInput.disabled = false;
+      if (activeRoom) messageInput.focus({preventScroll:true});
     }
-    if (text) await sendText(text);
-    messageInput.focus({ preventScroll: true });
+  }
+
+  const SAVED_KEY = 'afterglow.savedChats.v1';
+  function readSavedChats() { try { return JSON.parse(localStorage.getItem(SAVED_KEY) || '[]'); } catch { return []; } }
+  function writeSavedChats(items) { try { localStorage.setItem(SAVED_KEY, JSON.stringify(items)); return true; } catch { toast('Browser storage is full. Save a JSON export instead.', 'error'); return false; } }
+  function archiveCurrentChat() {
+    if (!activeRoom) return null;
+    return { id: activeRoom.code, title: `Chat ${activeRoom.code}`, roomCode: activeRoom.code, savedAt: new Date().toISOString(), messages: messages.map(m => ({id:m.id,type:m.type,text:m.text||'',dataUrl:m.dataUrl||'',fileName:m.fileName||'',senderName:m.senderName||m.sender||'friend',senderId:m.senderId||'saved-user',timestamp:m.timestamp||Date.now(),reactions:m.reactions||{}})) };
+  }
+  function renderSavedChats() {
+    const panel = $('#savedChatsList'); if (!panel) return;
+    panel.replaceChildren(); const saved = readSavedChats();
+    if (!saved.length) { const empty=document.createElement('div'); empty.className='saved-empty'; empty.textContent='No saved conversations yet. Save one when you leave a room to keep its story.'; panel.append(empty); return; }
+    saved.sort((a,b)=>String(b.savedAt).localeCompare(String(a.savedAt))).forEach(chat => {
+      const card=document.createElement('article'); card.className='saved-chat-card';
+      const title=document.createElement('h3'); title.textContent=chat.title||`Chat ${chat.roomCode}`;
+      const meta=document.createElement('p'); meta.textContent=`${(chat.messages||[]).length} messages · saved ${new Date(chat.savedAt).toLocaleString()}`;
+      const actions=document.createElement('div'); actions.className='saved-chat-actions';
+      const resume=document.createElement('button'); resume.className='button button-primary'; resume.type='button'; resume.textContent='Continue chat ↗';
+      resume.addEventListener('click',()=>resumeSavedChat(chat));
+      const exportBtn=document.createElement('button'); exportBtn.className='button button-quiet'; exportBtn.type='button'; exportBtn.textContent='Export'; exportBtn.addEventListener('click',()=>downloadSavedChat(chat));
+      const del=document.createElement('button'); del.className='button button-quiet'; del.type='button'; del.textContent='Delete'; del.addEventListener('click',()=>{if(confirm('Delete this saved chat from this browser?')){writeSavedChats(readSavedChats().filter(x=>x.id!==chat.id));renderSavedChats();}});
+      actions.append(resume,exportBtn,del); card.append(title,meta,actions); panel.append(card);
+    });
+  }
+  function downloadSavedChat(chat) {
+    const blob=new Blob([JSON.stringify(chat,null,2)],{type:'application/json'}),url=URL.createObjectURL(blob),a=document.createElement('a');
+    a.href=url;a.download=`afterglow-saved-${chat.roomCode||'chat'}.json`;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  }
+  function resumeSavedChat(chat) {
+    const name=cleanNickname(prompt('Choose your nickname to continue this saved conversation:')||'');
+    if(!name)return;
+    if(!socket.connected){toast('Connecting… try again in a moment.','error');return;}
+    socket.emit('room:create',{name,seedMessages:(chat.messages||[]).slice(-100)},response=>{
+      if(!response||!response.ok){toast(response?.error||'Could not reopen this chat.','error');return;}
+      enterRoom(response);toast('A fresh room is open with your saved history. Share the new invite link so friends can rejoin.','success');
+    });
+  }
+  function leaveWithChoice() {
+    if (!activeRoom) { showLanding(); return; }
+    const shouldSave = confirm('Before you leave: press OK to save this chat on this browser, or Cancel to leave without saving.');
+    if (shouldSave) {
+      const archive=archiveCurrentChat(); if(archive){const saved=readSavedChats().filter(x=>x.id!==archive.id);saved.push(archive);writeSavedChats(saved);renderSavedChats();toast('Saved on this browser. Open Saved Chats to continue later.','success');}
+    }
+    const roomCode=activeRoom.code;
+    socket.emit('room:leave',()=>{}); showLanding();
+    toast(shouldSave ? `Saved and left ${roomCode}.` : `Left ${roomCode} without saving.`, shouldSave?'success':'');
   }
 
   function exportChat() {
@@ -351,30 +405,33 @@
   }
 
   async function optimizeImage(file) {
-    const MAX_BYTES = 4 * 1024 * 1024;
-    if (!file || !file.type.startsWith('image/')) throw new Error('Choose an image file.');
+    const MAX_BYTES = 1.8 * 1024 * 1024;
+    if (!file || !/^image\/(png|jpeg|webp|gif)$/i.test(file.type)) throw new Error('Choose a PNG, JPG, WEBP or GIF image.');
     if (file.type === 'image/gif') {
-      if (file.size > MAX_BYTES) throw new Error('GIFs must be 4 MB or smaller.');
+      if (file.size > MAX_BYTES) throw new Error('Animated GIFs must be under 1.8 MB to keep the chat stable.');
       return { dataUrl: await fileToDataUrl(file), fileName: file.name || 'shared.gif' };
     }
-    const bitmap = await createImageBitmap(file);
-    const maxSide = 1600;
-    const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
-    const canvas = document.createElement('canvas');
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-    const context = canvas.getContext('2d', { alpha: true });
-    if (!context) { bitmap.close?.(); throw new Error('This browser could not process the image.'); }
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    bitmap.close?.();
-    let dataUrl = canvas.toDataURL('image/webp', 0.82);
-    if (!dataUrl.startsWith('data:image/webp')) dataUrl = canvas.toDataURL('image/jpeg', 0.82);
-    if (Math.floor((dataUrl.split(',')[1] || '').length * 3 / 4) > MAX_BYTES) {
-      dataUrl = canvas.toDataURL('image/jpeg', 0.62);
-    }
-    if (Math.floor((dataUrl.split(',')[1] || '').length * 3 / 4) > MAX_BYTES) throw new Error('That image is still too large after compression. Choose a smaller image.');
-    const safeName = file.name ? file.name.replace(/\.[^.]+$/, '') + (dataUrl.startsWith('data:image/webp') ? '.webp' : '.jpg') : 'shared-image';
-    return { dataUrl, fileName: safeName.slice(0, 100) };
+    let bitmap;
+    try { bitmap = await createImageBitmap(file); } catch { throw new Error('This image could not be opened. Try saving it as JPG or PNG.'); }
+    try {
+      const maxSide = 1280;
+      const scale = Math.min(1, maxSide / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext('2d', { alpha: false });
+      if (!context) throw new Error('This browser could not process the image.');
+      context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      let dataUrl = canvas.toDataURL('image/jpeg', 0.78);
+      for (const quality of [0.65, 0.52, 0.4]) {
+        if (Math.floor((dataUrl.split(',')[1] || '').length * 3 / 4) <= MAX_BYTES) break;
+        dataUrl = canvas.toDataURL('image/jpeg', quality);
+      }
+      if (Math.floor((dataUrl.split(',')[1] || '').length * 3 / 4) > MAX_BYTES) throw new Error('That picture is too detailed to send. Try a smaller image.');
+      const safeName = (file.name ? file.name.replace(/\.[^.]+$/, '') : 'shared-image') + '.jpg';
+      return { dataUrl, fileName: safeName.slice(0, 100) };
+    } finally { bitmap.close?.(); }
   }
 
   function fileToDataUrl(file) {
@@ -446,16 +503,7 @@
   $('#brandHome').addEventListener('click', (event) => { if (activeRoom) { event.preventDefault(); leaveCurrentRoom(); } });
   $('#footerHome').addEventListener('click', (event) => { if (activeRoom) { event.preventDefault(); leaveCurrentRoom(); } });
 
-  function leaveCurrentRoom() {
-    if (!activeRoom) { showLanding(); return; }
-    const roomCode = activeRoom.code;
-    socket.emit('room:leave', () => {
-      showLanding();
-      toast(`You left ${roomCode}. Your view has been cleared.`, 'success');
-    });
-    // Clear this device's view immediately, even if the connection drops.
-    showLanding();
-  }
+  function leaveCurrentRoom() { leaveWithChoice(); }
 
   $('#wipeRoom').addEventListener('click', () => {
     if (!activeRoom) return;
@@ -467,13 +515,15 @@
     });
   });
 
+  const themeNames = ['lilac','mint','peach','ocean','rose','amber'];
   $('#vibeButton').addEventListener('click', () => {
-    document.body.classList.remove(...moods.filter(Boolean));
     moodIndex = (moodIndex + 1) % moods.length;
+    document.body.classList.remove(...moods.filter(Boolean));
     if (moods[moodIndex]) document.body.classList.add(moods[moodIndex]);
-    const labels = ['lilac', 'mint', 'peach'];
-    toast(`Room mood: ${labels[moodIndex]}. Just your screen, just your vibe.`);
+    try { localStorage.setItem('afterglow.theme', themeNames[moodIndex]); } catch {}
+    toast(`Room theme: ${themeNames[moodIndex]}. Only your screen changes.`);
   });
+  try { const savedTheme=localStorage.getItem('afterglow.theme'); const idx=themeNames.indexOf(savedTheme); if(idx>0){moodIndex=idx;document.body.classList.add(moods[idx]);} } catch {}
 
   $('#attachImage').addEventListener('click', () => imageInput.click());
   imageInput.addEventListener('change', async () => {
@@ -499,15 +549,13 @@
     imagePreview.classList.add('hidden');
   });
 
-  $('#emojiToggle').addEventListener('click', () => emojiTray.classList.toggle('hidden'));
-  $$('button', emojiTray).forEach((button) => button.addEventListener('click', () => {
-    const start = messageInput.selectionStart;
-    const end = messageInput.selectionEnd;
-    const emoji = button.textContent;
-    messageInput.setRangeText(emoji, start, end, 'end');
-    messageInput.focus();
-    messageInput.dispatchEvent(new Event('input', { bubbles: true }));
-  }));
+  const emojiCollection = '😀 😃 😄 😁 😆 😅 😂 🙂 🙃 😉 😊 😍 🥰 😘 😗 😙 😚 😋 😛 😜 🤪 🤨 🧐 🤓 😎 🥸 🤩 🥳 😏 😒 😞 😔 😟 😕 🙁 ☹️ 😣 😖 😫 😩 🥺 😢 😭 😤 😠 😡 🤬 🤯 😳 🥵 🥶 😱 😨 😰 😥 😓 🤗 🤔 🫣 🤭 🫢 🫡 🤫 🫠 🤥 😶 😶‍🌫️ 😐 😑 😬 🙄 😯 😦 😧 😮 😲 🥱 😴 🤤 😪 😵 😵‍💫 🤐 🥴 🤢 🤮 🤧 😷 🤒 🤕 🤑 🤠 😈 👿 👹 👺 🤡 💩 👻 💀 ☠️ 👽 👾 🤖 🎃 😺 😸 😹 😻 😼 😽 🙀 😿 😾 🙈 🙉 🙊 💋 💌 💘 💝 💖 💗 💓 💞 💕 💟 ❣️ 💔 ❤️ 🩷 🧡 💛 💚 💙 🩵 💜 🤎 🖤 🩶 🤍 💯 💢 💥 💫 💦 💨 🕳️ 💬 👁️‍🗨️ 🗨️ 🗯️ 💭 💤 👋 🤚 🖐️ ✋ 🖖 🫱 🫲 🫳 🫴 👌 🤌 🤏 ✌️ 🤞 🫰 🤟 🤘 🤙 👈 👉 👆 🖕 👇 ☝️ 🫵 👍 👎 ✊ 👊 🤛 🤜 👏 🙌 🫶 👐 🤲 🤝 🙏 ✍️ 💅 🤳 💪 🦾 🦿 🦵 🦶 👂 🦻 👃 🧠 🫀 🫁 🦷 🦴 👀 👁️ 👅 👄 🫦 🌈 ☀️ 🌤️ ⛅ 🌥️ 🌦️ 🌧️ ⛈️ 🌩️ 🌨️ ❄️ ☃️ ⛄ 🌬️ 💨 🌪️ 🌫️ 🌊 💧 💦 ☔ ☂️ 🌍 🌎 🌏 🌕 🌖 🌗 🌘 🌑 🌒 🌓 🌔 ⭐ 🌟 ✨ ⚡ 🔥 ☄️ 💥 🎉 🎊 🎈 🎀 🎁 🪄 🪩 🎵 🎶 💃 🕺 🧸 🐶 🐱 🐭 🐹 🐰 🦊 🐻 🐼 🐻‍❄️ 🐨 🐯 🦁 🐮 🐷 🐸 🐵 🙈 🙉 🙊 🐔 🐧 🐦 🐤 🦆 🦅 🦉 🦇 🐺 🐗 🐴 🦄 🐝 🪱 🦋 🐌 🐞 🐜 🪰 🪲 🦟 🦗 🕷️ 🦂 🐢 🐍 🦎 🦖 🦕 🐙 🦑 🦐 🦞 🦀 🐡 🐠 🐟 🐬 🐳 🦈 🐊 🐅 🐆 🦓 🦍 🦧 🐘 🦛 🦏 🐪 🐫 🦒 🦘 🦬 🐃 🐂 🐄 🐎 🐖 🐏 🐑 🦙 🐐 🦌 🐕 🐩 🦮 🐈 🐈‍⬛ 🐓 🦃 🦚 🦜 🦢 🦩 🕊️ 🐇 🦝 🦨 🦡 🦫 🦦 🦥 🐁 🐀 🐿️ 🦔 🍏 🍎 🍐 🍊 🍋 🍌 🍉 🍇 🍓 🫐 🍈 🍒 🍑 🥭 🍍 🥥 🥝 🍅 🍆 🥑 🥦 🥬 🥒 🌶️ 🫑 🌽 🥕 🫒 🧄 🧅 🥔 🍠 🥐 🥯 🍞 🥖 🥨 🧀 🥚 🍳 🧈 🥞 🧇 🥓 🥩 🍗 🍖 🌭 🍔 🍟 🍕 🫓 🥪 🥙 🧆 🌮 🌯 🫔 🥗 🥘 🫕 🍝 🍜 🍲 🍛 🍣 🍱 🥟 🦪 🍤 🍙 🍚 🍘 🍥 🥠 🥮 🍢 🍡 🍧 🍨 🍦 🥧 🧁 🍰 🎂 🍮 🍭 🍬 🍫 🍿 🍩 🍪 🌰 🥜 🍯 🥛 🍼 ☕ 🫖 🍵 🧃 🥤 🧋 🍶 🍺 🍻 🥂 🍷 🥃 🍸 🍹 🧉 🧊 🥄 🍴 🍽️ 🥣 🥡 🥢 🧂 🏳️‍🌈 🏳️‍⚧️'.split(' ');
+  function insertEmoji(emoji) { const start=messageInput.selectionStart,end=messageInput.selectionEnd;messageInput.setRangeText(emoji,start,end,'end');messageInput.focus();messageInput.dispatchEvent(new Event('input',{bubbles:true})); }
+  $('#emojiToggle').addEventListener('click', () => {
+    if (emojiTray.childElementCount < 20) { emojiTray.replaceChildren(); const search=document.createElement('input');search.type='search';search.placeholder='Search emojis…';search.className='emoji-search';search.setAttribute('aria-label','Search emojis');const grid=document.createElement('div');grid.className='emoji-grid';emojiTray.append(search,grid);
+      const paint=(term='')=>{grid.replaceChildren();emojiCollection.filter(e=>!term||e.includes(term)).slice(0,420).forEach(emoji=>{const b=document.createElement('button');b.type='button';b.textContent=emoji;b.title=emoji;b.addEventListener('click',()=>insertEmoji(emoji));grid.append(b);});};paint();search.addEventListener('input',()=>paint(search.value.trim())); }
+    emojiTray.classList.toggle('hidden');
+  });
 
   $('#composerForm').addEventListener('submit', sendCurrentMessage);
   messageInput.addEventListener('input', () => {
@@ -594,6 +642,8 @@
     if (reason === 'io server disconnect') socket.connect();
   });
 
+  $('#savedChatsButton')?.addEventListener('click', () => { landingView.classList.add('hidden'); $('#savedChatsView').classList.remove('hidden'); renderSavedChats(); window.scrollTo({top:0,behavior:'smooth'}); });
+  $('#savedChatsBack')?.addEventListener('click', () => { $('#savedChatsView').classList.add('hidden'); landingView.classList.remove('hidden'); });
   // The query string is an invite, not an automatic join: nickname is still required.
   const queryParams = new URLSearchParams(window.location.search);
   const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
