@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#0a0912" />
+  <meta name="description" content="Afterglow is a two-person chat room that disappears when the room closes. No chat history database. Just the moment." />
+  <title>afterglow — keep the vibe, lose the history</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="ambient ambient-one" aria-hidden="true"></div>
+  <div class="ambient ambient-two" aria-hidden="true"></div>
+  <div class="grain" aria-hidden="true"></div>
+  <div class="cursor-glow" id="cursorGlow" aria-hidden="true"></div>
+
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="./" aria-label="Afterglow home" id="brandHome">
+        <span class="brand-mark"><span></span><span></span><span></span></span>
+        <span>afterglow<span class="brand-period">.</span></span>
+      </a>
+      <div class="topbar-right">
+        <span class="privacy-status"><span class="live-dot"></span> NO HISTORY MODE</span>
+        <a class="top-link" href="#how-it-works">the vibe <span aria-hidden="true">↗</span></a>
+      </div>
+    </header>
+
+    <main id="landingView" class="landing-view">
+      <section class="hero-section">
+        <div class="hero-copy reveal">
+          <div class="eyebrow"><span class="eyebrow-star">✳</span> YOUR LITTLE CORNER OF THE INTERNET</div>
+          <h1>Keep the vibe.<br /><span class="gradient-words">Lose the history.</span></h1>
+          <p class="hero-description">A private little room for your people. Drop the thought, send the pic, overshare a bit. When everyone leaves, it all fades out. <span>No chat archive. Just the moment.</span></p>
+          <div class="hero-actions">
+            <button class="button button-primary button-large" id="openCreate">
+              <span class="button-icon">✳</span> Create a room <span class="button-arrow">↗</span>
+            </button>
+            <a class="button button-quiet button-large" href="#join-section">I have a code <span aria-hidden="true">↓</span></a>
+          </div>
+          <div class="micro-proof"><div class="avatar-stack" aria-hidden="true"><span>A</span><span>✿</span><span>✦</span></div><span>Just you + your person.</span><span class="micro-divider"></span><span class="micro-mono">NO SIGN-UP. EVER.</span></div>
+        </div>
+
+        <div class="hero-art reveal reveal-delay" aria-label="Preview of a private Afterglow conversation">
+          <div class="orbit orbit-outer"></div><div class="orbit orbit-inner"></div>
+          <div class="spark spark-a">✳</div><div class="spark spark-b">✧</div><div class="spark spark-c">✦</div>
+          <div class="preview-card">
+            <div class="preview-header">
+              <div class="preview-room-icon"><span>✳</span></div>
+              <div class="preview-heading"><strong>the yap session</strong><span><i></i> just you two</span></div>
+              <span class="preview-more">•••</span>
+            </div>
+            <div class="preview-chat">
+              <div class="preview-date"><span>THE MOMENT IS NOW</span></div>
+              <div class="preview-message friend-message"><span class="preview-name">mika</span><div>wait i have the funniest story 😭</div><time>8:41 PM</time></div>
+              <div class="preview-message you-message"><div>omg drop EVERYTHING</div><time>8:41 PM <span>✓✓</span></time></div>
+              <div class="preview-image"><div class="fake-photo"><span>✷</span><small>literally us</small></div><div class="image-caption">no context needed lmao</div></div>
+              <div class="preview-message friend-message short-message"><div>THIS IS SO YOU 💀</div></div>
+              <div class="preview-typing"><span class="typing-dots"><i></i><i></i><i></i></span><span>mika is cooking...</span></div>
+            </div>
+            <div class="preview-composer"><span>say it with your chest...</span><span class="preview-send">↗</span></div>
+            <div class="preview-stamp"><span>☁</span> EPHEMERAL BY DESIGN</div>
+          </div>
+          <div class="floating-note note-top"><span class="note-dot"></span> no screenshots? we trust the vibes</div>
+          <div class="floating-note note-bottom"><span>⌁</span> memory not included</div>
+        </div>
+      </section>
+
+      <section class="join-band" id="join-section">
+        <div class="join-copy"><span class="section-kicker">YOUR FRIEND SENT A CODE?</span><h2>Slide into<br /><em>the room.</em></h2><p>Ten characters. Two people. One tiny universe.</p></div>
+        <form id="joinForm" class="join-card" autocomplete="off">
+          <div class="join-card-top"><div><span class="join-label">ROOM ACCESS</span><h3>You've got the invite.</h3></div><div class="keyhole">⌑</div></div>
+          <label for="joinName">Your nickname <span>↴</span></label>
+          <input id="joinName" name="name" type="text" maxlength="24" placeholder="what do your friends call you?" required autocomplete="nickname" />
+          <label for="joinCode">Room code <span>10 CHARACTERS</span></label>
+          <input id="joinCode" name="code" class="code-input" type="text" minlength="10" maxlength="10" placeholder="Q7KM3X9P2R" required autocapitalize="characters" spellcheck="false" />
+          <button class="button button-primary join-submit" type="submit">Join the room <span class="button-arrow">↗</span></button>
+          <p class="join-footnote"><span>🔒</span> Two people only. No chat database. Best on a stable network with WebRTC support.</p>
+        </form>
+      </section>
+
+      <section class="features-section" id="how-it-works">
+        <div class="features-heading"><div><span class="section-kicker">THE INTERNET, BUT LESS PERMANENT</span><h2>Made for the <em>right now.</em></h2></div><p>Group chats are forever. This one knows when to let go.</p></div>
+        <div class="feature-grid">
+          <article class="feature-card feature-lilac"><div class="feature-top"><span class="feature-number">01 / PRIVATE</span><span class="feature-symbol">↗</span></div><div class="feature-illustration lock-art"><span class="lock-body">⌑</span><i class="lock-spark">✦</i><i class="lock-spark two">✧</i></div><h3>Two's a crowd.</h3><p>Your room fits exactly two people. Share a link or a one-time code. No audience, no randoms.</p></article>
+          <article class="feature-card feature-mint"><div class="feature-top"><span class="feature-number">02 / EPHEMERAL</span><span class="feature-symbol">⌁</span></div><div class="feature-illustration fade-art"><span>gone</span><i>✳</i><b></b></div><h3>Gone when you're gone.</h3><p>Messages and images travel directly between browsers. When either person leaves, the room is wiped.</p></article>
+          <article class="feature-card feature-peach"><div class="feature-top"><span class="feature-number">03 / YOUR CALL</span><span class="feature-symbol">♡</span></div><div class="feature-illustration save-art"><span class="save-file">TXT<br /><small>your memory</small></span><i>↓</i></div><h3>Keep what matters.</h3><p>Hit Save chat to export the conversation to your own device. Nothing gets quietly archived on our side.</p></article>
+        </div>
+      </section>
+
+      <section class="manifesto-section"><div class="manifesto-mark">✳</div><p>Some conversations are better as <span>moments,</span><br />not receipts.</p><div class="manifesto-signature">a little less permanent. a little more present.</div></section>
+      <footer class="site-footer"><a class="brand footer-brand" href="./" id="footerHome"><span class="brand-mark"><span></span><span></span><span></span></span><span>afterglow<span class="brand-period">.</span></span></a><span>Made for the lore. Not the archive.</span><button type="button" class="footer-disclaimer" id="privacyDetails">privacy, plainly ↗</button></footer>
+    </main>
+
+    <main id="roomView" class="room-view hidden" aria-label="Private chat room">
+      <header class="room-topbar">
+        <a class="brand" href="./" id="roomBrandHome" aria-label="Leave room and return home"><span class="brand-mark"><span></span><span></span><span></span></span><span>afterglow<span class="brand-period">.</span></span></a>
+        <div class="room-center-status"><span class="live-dot"></span><span>PRIVATE ROOM</span><span class="room-status-separator">/</span><span id="roomCodeLabel" class="room-code-text">------</span><button id="copyInvite" class="copy-invite" type="button" title="Copy invite link">copy invite ↗</button></div>
+        <div class="room-top-actions"><button id="vibeButton" class="icon-button vibe-button" title="Change the room's color mood" type="button">◒ <span>vibe</span></button><button id="saveChat" class="button button-save" type="button"><span>↓</span> Save chat</button><button id="leaveRoom" class="icon-button leave-button" title="Leave and clear your view" type="button">↗</button></div>
+      </header>
+      <section class="chat-workspace">
+        <aside class="room-side-panel">
+          <div class="side-label">YOUR LITTLE UNIVERSE</div><div class="room-orb"><div class="orb-core">✳</div><div class="orb-ring ring-one"></div><div class="orb-ring ring-two"></div></div>
+          <h2 id="roomHeadline">the yap session</h2><p class="room-subtitle">This room belongs to<br />the two of you.</p>
+          <div class="member-list" id="memberList"></div>
+          <div class="room-rule"><span>⌁</span><div><strong>Living in the now</strong><p>Messages vanish when the last person leaves. Nothing gets saved by default.</p></div></div>
+          <button id="wipeRoom" class="wipe-button" type="button"><span>✳</span> Wipe this room now</button>
+        </aside>
+        <section class="chat-panel">
+          <div class="chat-panel-heading"><div><span class="section-kicker">THE CONVERSATION</span><h2>Say it <em>here.</em></h2></div><div class="online-pill"><span class="live-dot"></span><span id="onlineCount">1/2 HERE</span></div></div>
+          <div id="messageList" class="message-list" aria-live="polite" aria-relevant="additions text">
+            <div class="empty-state" id="emptyState"><div class="empty-icon">✳</div><h3>It's quiet in here.</h3><p>Drop the first message.<br />Make it a good one (or don't).</p><span class="empty-nudge">psst, images are welcome too ↴</span></div>
+          </div>
+          <div class="typing-status" id="typingStatus" aria-live="polite"></div>
+          <form id="composerForm" class="composer-form">
+            <div class="composer-tools"><div class="tool-left"><button type="button" id="attachImage" class="composer-tool" title="Attach an image">＋ <span>add a pic</span></button><input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden /><button type="button" id="emojiToggle" class="composer-tool emoji-toggle" title="Add an emoji">☺</button></div><span class="composer-hint">ENTER TO SEND <span>·</span> SHIFT + ENTER FOR A LINE</span></div>
+            <div id="emojiTray" class="emoji-tray hidden" aria-label="Emoji picker"><button type="button">😭</button><button type="button">💀</button><button type="button">🫶</button><button type="button">😂</button><button type="button">👀</button><button type="button">✨</button><button type="button">💜</button><button type="button">🔥</button><button type="button">🥹</button><button type="button">🤝</button><button type="button">🫡</button><button type="button">😮‍💨</button></div>
+            <div class="composer-row"><textarea id="messageInput" rows="1" maxlength="4000" placeholder="say it with your chest..." aria-label="Write a message"></textarea><button class="send-button" type="submit" aria-label="Send message"><span>↗</span></button></div>
+            <div id="imagePreview" class="image-preview hidden"><span id="imagePreviewName"></span><button type="button" id="cancelImage" aria-label="Remove selected image">×</button></div>
+          </form>
+          <div class="chat-footnote"><span>☁</span> This chat only exists while the room is active. <button id="chatPrivacyLink" type="button">how that works</button></div>
+        </section>
+      </section>
+    </main>
+  </div>
+
+  <dialog id="createDialog" class="modal-dialog">
+    <form id="createForm" class="modal-content" method="dialog">
+      <button type="button" class="modal-close" id="closeCreate" aria-label="Close">×</button>
+      <span class="modal-icon">✳</span><span class="section-kicker">MAKE A LITTLE SPACE</span><h2>Who are <em>you</em> today?</h2><p>Pick a nickname and we'll make a private room just for you two.</p>
+      <label for="createName">Nickname</label><input id="createName" maxlength="24" placeholder="e.g. tiny menace" autocomplete="nickname" required />
+      <button class="button button-primary modal-submit" type="submit">Make my room <span class="button-arrow">↗</span></button>
+      <span class="modal-footnote">A random code will be yours to share. No accounts, no fuss.</span>
+    </form>
+  </dialog>
+
+  <dialog id="privacyDialog" class="modal-dialog privacy-dialog">
+    <div class="modal-content"><button type="button" class="modal-close" id="closePrivacy" aria-label="Close">×</button><span class="modal-icon">☁</span><span class="section-kicker">NO WEIRD FINE PRINT</span><h2>Privacy, <em>plainly.</em></h2><div class="privacy-copy"><p><strong>Chat content is peer-to-peer.</strong> Messages and images travel between the two browsers over a WebRTC data channel. Afterglow does not upload chat content to its website host or a chat database. The public PeerJS signaling service helps the browsers find each other; it handles connection setup metadata, not the chat messages.</p><p><strong>When does it disappear?</strong> If either person leaves or the connection breaks, the room ends and the interface clears both views. Active content exists in browser memory while the room is open; a crash or disconnection can end the chat unexpectedly.</p><p><strong>Save means save to your device.</strong> The Save chat button downloads a JSON export to your device. That file can outlive the room, and it is your responsibility to protect or delete it.</p><p><strong>Network caveat.</strong> WebRTC works directly on many networks, but strict school, office, or mobile networks can block peer connections. This version has no TURN relay fallback, so some connections may fail. Other participants can also copy or screenshot content. Use a trusted network for private conversations.</p></div><button type="button" class="button button-primary modal-submit" id="privacyGotIt">Got it <span class="button-arrow">✓</span></button></div>
+  </dialog>
+
+  <div class="toast-stack" id="toastStack" aria-live="polite" aria-atomic="true"></div>
+  <script src="https://unpkg.com/peerjs@1.5.5/dist/peerjs.min.js" crossorigin="anonymous"></script>
+  <script src="realtime.js"></script>
+  <script src="app.js" defer></script>
+</body>
+</html>
